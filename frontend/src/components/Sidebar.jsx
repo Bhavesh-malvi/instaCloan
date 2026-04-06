@@ -9,10 +9,12 @@ import { CgAddR } from "react-icons/cg";
 import { RxHamburgerMenu } from "react-icons/rx";
 import { AppContext } from '../context/AppContext';
 import avatar from '../assets/img/avatar.png';
+import CreatePostModal from './CreatePostModal';
 
 const Sidebar = () => {
   const { userData, handleLogout } = useContext(AppContext);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const moreMenuRef = useRef(null);
 
   const sidebarLinks = [
@@ -67,7 +69,13 @@ const Sidebar = () => {
           <NavLink
             to={link.path}
             key={link.name} 
-            className={({isActive}) => `flex items-center gap-4 p-3 my-[2px] rounded-lg cursor-pointer transition ${isActive ? 'font-bold' : 'font-normal hover:bg-gray-100'}`}
+            onClick={(e) => {
+              if (link.name === 'Create') {
+                e.preventDefault();
+                setIsCreateModalOpen(true);
+              }
+            }}
+            className={({isActive}) => `flex items-center gap-4 p-3 my-[2px] rounded-lg cursor-pointer transition ${isActive && link.name !== 'Create' ? 'font-bold' : 'font-normal hover:bg-gray-100'}`}
           >
             <div className="flex items-center justify-center lg:justify-start w-full gap-4 text-black">
               <div className="group-hover:scale-105 transition-transform text-black flex items-center justify-center">
@@ -103,6 +111,11 @@ const Sidebar = () => {
            <span className="hidden lg:block text-[15px] font-normal">More</span>
          </div>
       </div>
+
+      <CreatePostModal 
+        isOpen={isCreateModalOpen} 
+        onClose={() => setIsCreateModalOpen(false)} 
+      />
     </div>
   );
 };

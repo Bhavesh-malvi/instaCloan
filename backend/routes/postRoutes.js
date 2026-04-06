@@ -9,7 +9,7 @@ postRouter.post("/create", AuthUser, upload.array("image", 10), createPost);
 postRouter.post("/like/:postId", AuthUser, likePost);
 postRouter.get("/all", AuthUser, getExplorePosts);
 postRouter.get("/post/:postId", AuthUser, getPostById);
-postRouter.get("/user/:userId", AuthUser, getUserPost);
+postRouter.get("/user/:userId", getUserPost);
 postRouter.delete("/delete/:postId", AuthUser, deletePost);
 postRouter.get("/feed", AuthUser, getFeedPost);
 

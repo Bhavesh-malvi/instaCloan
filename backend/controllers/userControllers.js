@@ -54,7 +54,6 @@ export const signin = async (req, res) => {
     try {
         const { username, password } = req.body;
 
-
         if (!username || !password) {
             return res.status(400).json({
                 success: false,
@@ -322,5 +321,41 @@ export const getSuggestedUser = async (req, res) =>{
             success: false,
             message: "Internal server error"
         })
+    }
+}
+
+
+export const searchUser = async (req, res) =>{
+    try {
+        const {query} = req.query;
+
+        const users = await User.find({
+            username: {$regex: query, $options: "i"}
+        }).select("fullname username profilePic").limit(10);
+
+        return res.status(200).json({
+            success: true,
+            users
+        })
+    } catch (error) {
+        console.log("Search error",error)
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        })
+    }
+}
+
+export const getUserProfileByUsername = async (req, res) => {
+    try {
+        const { username } = req.params;
+        const user = await User.findOne({ username }).select("-password");
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        return res.status(200).json({ success: true, user });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }

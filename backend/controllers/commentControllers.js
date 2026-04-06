@@ -28,6 +28,9 @@ export const addComment = async (req, res) =>{
             text
         })
 
+        post.comments.push(comment._id);
+        await post.save();
+
         return res.status(201).json({
             success: true,
             message: "Comment added successfully",
@@ -47,7 +50,7 @@ export const getComment = async (req, res) =>{
     try {
         const {postId} = req.params;
 
-        const comment = await Comment.find({postId}).populate("user", "username profilePic").sort({createdAt: -1});
+        const comment = await Comment.find({post: postId}).populate("user", "username profilePic").sort({createdAt: -1});
 
         return res.status(200).json({
             success: true,
@@ -85,6 +88,10 @@ export const deleteComment = async (req, res) =>{
         }
 
         await comment.deleteOne();
+
+        await Post.findByIdAndUpdate(comment.post, {
+            $pull: { comments: commentId }
+        });
 
         return res.status(200).json({
             success: true,

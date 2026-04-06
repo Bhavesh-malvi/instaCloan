@@ -1,17 +1,18 @@
 import React, { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
 import { FiSettings, FiHeart } from 'react-icons/fi';
-import { BsGrid3X3, BsBookmark, BsPersonBoundingBox } from 'react-icons/bs';
+import { BsGrid3X3, BsBookmark, BsPersonBoundingBox, BsChatFill } from 'react-icons/bs';
 import { BiMoviePlay } from "react-icons/bi";
 import avatar from '../assets/img/avatar.png';
 import EditProfileModal from '../components/EditProfileModal';
+import PostDetailModal from '../components/PostDetailModal';
 
 const Profile = () => {
-  const { userData } = useContext(AppContext);
+  const { userData, userPosts, postDataById, isPostModalOpen, handlePostClick, setIsPostModalOpen } = useContext(AppContext);
   const [activeTab, setActiveTab] = useState('POSTS');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  console.log(userData);
+  
+  
   
 
   // Dummy Profile Data
@@ -21,32 +22,13 @@ const Profile = () => {
     bio: userData?.bio || 'Dreamer & Developer 🚀\\nMERN Stack Enthusiast 💻\\nBuilding cool stuff! \\n📍 Udaipur, India',
     link: 'portfoliowebsite.com',
     avatar: userData?.profilePic || avatar,
-    postsCount: 12,
+    postsCount: userPosts.length,
     followersCount: userData?.followers?.length || 0,
     followingCount: userData?.following?.length || 0,
   };
 
   // Dummy Posts Grid Data
-  const gridPosts = Array.from({ length: 12 }).map((_, i) => ({
-    id: i + 1,
-    image: `https://images.unsplash.com/photo-${1500000000000 + i * 1000}?auto=format&fit=crop&w=400&q=80` // placeholder random style photos using ids, actually unsplash doesn't work like this reliably
-  }));
-  
-  // Reliable grid images
-  const reliableGridPosts = [
-    "https://images.unsplash.com/photo-1707343843437-caacff5cfa74?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1523206489230-c012c64b2b48?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1494548162494-384bba4ab999?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1433086966358-54859d0ed716?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1542224566-6f3b0060098f?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1531604250646-2f0e818c4e06?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?q=80&w=400&auto=format&fit=crop",
-    "https://images.unsplash.com/photo-1469474968028-56623f02e42e?q=80&w=400&auto=format&fit=crop"
-  ];
+
 
   const tabs = [
     { name: 'POSTS', icon: <BsGrid3X3 size={12} /> },
@@ -58,6 +40,11 @@ const Profile = () => {
   return (
     <div className="w-full flex justify-center mt-6 lg:mt-10 mb-20">
       <EditProfileModal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} />
+      <PostDetailModal     
+        isOpen={isPostModalOpen} 
+        onClose={() => setIsPostModalOpen(false)} 
+        postData={postDataById} 
+      />
       <div className="max-w-[935px] w-full px-4 sm:px-6">
         
         {/* PROFILE HEADER AREA */}
@@ -120,30 +107,32 @@ const Profile = () => {
           ))}
         </div>
 
-        {/* PHOTO GRID (Only shown for 'POSTS' & 'SAVED' internally generally) */}
-        <div className="grid grid-cols-3 gap-1 grid-flow-row mt-2">
-          {reliableGridPosts.map((img, i) => (
-            <div key={i} className="aspect-square bg-gray-200 cursor-pointer relative group">
-              <img src={img} alt="Grid post" className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition flex items-center justify-center gap-6 opacity-0 group-hover:opacity-100 z-10 text-white">
-                 {/* Hover Overlay Stats */}
-                 <div className="flex items-center gap-2 font-semibold">
-                   <FiHeart size={20} className="fill-white" />
-                   <span>{(i * 123 + 45) % 1000}</span>
-                 </div>
-                 <div className="flex items-center gap-2 font-semibold">
-                   <BsPersonBoundingBox size={20} className="fill-white" />
-                   <span>{(i * 12 + 4) % 100}</span> 
-                 </div>
+        {/* PHOTO GRID */}
+        {activeTab === 'POSTS' && (
+          <div className="grid grid-cols-3 gap-1 grid-flow-row mt-2">
+            {userPosts.map((img, i) => (
+              <div key={i} className="aspect-square bg-gray-200 cursor-pointer relative group" onClick={() => handlePostClick(img._id)}>
+                <img src={img.images[0]} alt="Grid post" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/50 bg-opacity-0 group-hover:bg-opacity-30 transition flex items-center justify-center gap-6 opacity-0 group-hover:opacity-100 z-10 text-white">
+                   {/* Hover Overlay Stats */}
+                   <div className="flex items-center gap-2 font-semibold">
+                     <FiHeart size={20} className="fill-white" />
+                     <span>{img.likes.length}</span>
+                   </div>
+                   <div className="flex items-center gap-2 font-semibold">
+                     <BsChatFill size={20} className="fill-white" />
+                     <span>{img.comments.length}</span> 
+                   </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Informative text if rendering other tabs */}
         {activeTab !== 'POSTS' && (
-          <div className="w-full h-[300px] flex items-center justify-center -mt-64 relative z-0 opacity-80 pointer-events-none">
-            <p className="text-gray-500 text-sm font-semibold">Section under construction / Empty dummy state</p>
+          <div className="w-full py-20 flex items-center justify-center text-center opacity-80 pointer-events-none mt-10 border-t border-gray-200">
+            <p className="text-gray-500 text-sm font-semibold">Section under construction</p>
           </div>
         )}
 

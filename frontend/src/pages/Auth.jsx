@@ -69,7 +69,7 @@ const Auth = () => {
                 htmlFor="username"
                 className="absolute left-2 text-[#737373] text-[10px] transition-all peer-placeholder-shown:text-[12px] peer-placeholder-shown:top-[11px] peer-focus:text-[10px] peer-focus:top-[3px] top-[3px] pointer-events-none"
               >
-                {isLogin === 'signin' ? "Phone number, username, or email" : "Mobile Number or Email"}
+                {isLogin === 'signin' ? "Phone number, username, or email" : "Username"}
               </label>
             </div>
 
@@ -95,20 +95,20 @@ const Auth = () => {
                 
                 <div className="relative">
                   <input
-                    id="username"
+                    id="email"
                     type="text"
-                    name="username"
-                    value={userForm.username}
+                    name="email"
+                    value={userForm.email}
                     onChange={handleChange}
                     className="peer w-full bg-[#fafafa] border border-gray-300 text-xs text-gray-800 rounded-[3px] focus:outline-none focus:border-gray-400 px-2 pt-[14px] pb-[2px]"
                     placeholder=" "
                     required
                   />
                   <label
-                    htmlFor="username"
+                    htmlFor="email"
                     className="absolute left-2 text-[#737373] text-[10px] transition-all peer-placeholder-shown:text-[12px] peer-placeholder-shown:top-[11px] peer-focus:text-[10px] peer-focus:top-[3px] top-[3px] pointer-events-none"
                   >
-                    Username
+                    Email
                   </label>
                 </div>
               </>
@@ -152,7 +152,7 @@ const Auth = () => {
             <button
               type="submit"
               className={`w-full text-white font-semibold py-[6px] rounded-[8px] transition duration-200 text-sm mt-2 flex items-center justify-center
-                ${!userForm.email || !userForm.password ? 'bg-[#4cb5f9] hover:bg-[#4cb5f9] cursor-not-allowed opacity-70' : 'bg-[#0095f6] hover:bg-[#1877f2] shadow-sm'}`}
+                ${!userForm.username || !userForm.password ? 'bg-[#4cb5f9] hover:bg-[#4cb5f9] cursor-not-allowed opacity-70' : 'bg-[#0095f6] hover:bg-[#1877f2] shadow-sm'}`}
             >
               {isLogin === 'signin' ? 'Log in' : 'Sign up'}
             </button>

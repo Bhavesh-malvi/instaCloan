@@ -6,6 +6,8 @@ import MainLayout from './layouts/MainLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AppContext } from './context/AppContext'
 import Profile from './pages/Profile'
+import Search from './pages/Search'
+import UserProfile from './pages/UserProfile'
 
 // Dummy Component indicating page works inside Layout
 const PlaceholderPage = ({ title }) => (
@@ -35,13 +37,14 @@ const App = () => {
           {/* Main Layout matches outer design (Sidebar) */}
           <Route element={<MainLayout />}>
             <Route path='/' element={<Home />} /> 
-            <Route path='/search' element={<PlaceholderPage title="Search" />} />
+            <Route path='/search' element={<Search />} />
             <Route path='/explore' element={<PlaceholderPage title="Explore" />} />
             <Route path='/reels' element={<PlaceholderPage title="Reels" />} />
             <Route path='/messages' element={<PlaceholderPage title="Messages" />} />
             <Route path='/notifications' element={<PlaceholderPage title="Notifications" />} />
             <Route path='/create' element={<PlaceholderPage title="Create" />} />
             <Route path='/profile' element={<Profile />} />
+            <Route path='/profile/:username' element={<UserProfile />} />
           </Route>
         </Route>
 
