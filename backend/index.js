@@ -9,6 +9,7 @@ import postRouter from "./routes/postRoutes.js";
 import commentRouter from "./routes/commentRoutes.js";
 import storyRouter from "./routes/storyRoutes.js";
 import { initSocket } from "./config/socket.js";
+import messageRouter from "./routes/messageRoutes.js";
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use("/api/user", userRouter)
 app.use("/api/posts", postRouter)
 app.use("/api/comments", commentRouter)
 app.use("/api/story", storyRouter)
+app.use("/api/messages", messageRouter)
 
 const server = http.createServer(app)
 
