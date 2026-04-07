@@ -299,6 +299,8 @@ export const AppProvider = ({ children }) => {
         }
     }
 
+    
+
 
     useEffect(() => {
         getProfile();
