@@ -230,9 +230,6 @@ export const AppProvider = ({ children }) => {
             const {data} = await API.post(`/posts/like/${postId}`)
             if(data.success){
                 getFeedPost();
-                if (userData) {
-                    getUserPost(userData._id);
-                }
                 getPostById(postId);
             }
         } catch (error) {
@@ -246,9 +243,6 @@ export const AppProvider = ({ children }) => {
             const {data} = await API.delete(`/posts/delete/${postId}`)
             if(data.success){
                 getFeedPost();
-                if (userData) {
-                    getUserPost(userData._id);
-                }
             }
         } catch (error) {
             console.log("post controller error", error);

@@ -2,8 +2,10 @@ import React, { useState, useRef } from 'react';
 import { AiOutlineClose } from 'react-icons/ai';
 import { BiImageAdd } from 'react-icons/bi';
 import API from "../api/axios"
+import { AppContext } from '../context/AppContext';
 
 const CreatePostModal = ({ isOpen, onClose }) => {
+  const { getFeedPost } = React.useContext(AppContext);
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -47,6 +49,7 @@ const CreatePostModal = ({ isOpen, onClose }) => {
 
       if(data.success){
         console.log("Post created successfully", data);
+        getFeedPost();
         clearSelection();
         onClose();
       }

@@ -19,6 +19,7 @@ const Home = () => {
   };
 
   const [commentTexts, setCommentTexts] = useState({});
+  const [activeImageIndex, setActiveImageIndex] = useState({});
 
   const handleCommentChange = (postId, text) => {
     setCommentTexts(prev => ({...prev, [postId]: text}));
@@ -398,11 +399,54 @@ const Home = () => {
                     
                     {/* Post Image */}
                     <div 
-                        className="w-full bg-gray-100 rounded-sm overflow-hidden flex items-center justify-center border border-gray-100 relative cursor-pointer select-none"
+                        className="w-full bg-black rounded-sm overflow-hidden flex border border-gray-100 relative cursor-pointer select-none group"
                         onDoubleClick={() => handleDoubleClick(post._id, post?.likes?.includes(userData?._id))}
                     >
-                      <img src={post?.images[0]} alt="post" className="w-full object-cover max-h-[585px]" />
+                      <div 
+                        className="flex w-full transition-transform duration-300 ease-in-out items-center" 
+                        style={{ transform: `translateX(-${(activeImageIndex[post._id] || 0) * 100}%)` }}
+                      >
+                        {post?.images.map((imgSrc, idx) => (
+                          <img key={idx} src={imgSrc} alt="post" className="w-full object-contain max-h-[585px] flex-shrink-0" />
+                        ))}
+                      </div>
                       
+                      {/* Carousel Controls */}
+                      {post?.images?.length > 1 && (
+                        <>
+                          {(activeImageIndex[post._id] || 0) > 0 && (
+                            <button 
+                              className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/50 hover:bg-white text-black p-1.5 rounded-full z-20 opacity-0 group-hover:opacity-100 transition shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveImageIndex(prev => ({ ...prev, [post._id]: (prev[post._id] || 0) - 1 }));
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                            </button>
+                          )}
+                          
+                          {(activeImageIndex[post._id] || 0) < post.images.length - 1 && (
+                            <button 
+                              className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/50 hover:bg-white text-black p-1.5 rounded-full z-20 opacity-0 group-hover:opacity-100 transition shadow-sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveImageIndex(prev => ({ ...prev, [post._id]: (prev[post._id] || 0) + 1 }));
+                              }}
+                            >
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                            </button>
+                          )}
+
+                          {/* Pagination Dots */}
+                          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1 z-20 pointer-events-none">
+                            {post.images.map((_, idx) => (
+                              <div key={idx} className={`rounded-full transition-all duration-300 ${(activeImageIndex[post._id] || 0) === idx ? 'bg-blue-400 w-1.5 h-1.5' : 'bg-white/70 w-1.5 h-1.5'}`}></div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+
                       {/* Heart Animation Overlay */}
                       {animatingPosts[post?._id] && (
                           <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
