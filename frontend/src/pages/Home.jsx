@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { AppContext } from '../context/AppContext';
 import { FiMessageCircle, FiSend, FiBookmark, FiHeart, FiSearch } from "react-icons/fi";
 import { BsThreeDots } from "react-icons/bs";
@@ -9,7 +9,7 @@ import PostOptionsModal from '../components/PostOptionsModal';
 import { PostSkeleton } from '../components/Skeletons';
 
 const Home = () => {
-  const { userForm, userData, feedPosts, isFeedLoading, isPostModalOpen, handlePostClick, setIsPostModalOpen, postDataById, likePost, addComment, timeAgo } = useContext(AppContext);
+  const { userForm, userData, feedPosts, isFeedLoading, isPostModalOpen, handlePostClick, setIsPostModalOpen, postDataById, likePost, addComment, timeAgo, stories, uploadStory, isStoryLoading, deleteStory } = useContext(AppContext);
   const [optionsModalOpen, setOptionsModalOpen] = useState(false);
   const [selectedPostOptions, setSelectedPostOptions] = useState(null);
 
@@ -47,12 +47,129 @@ const Home = () => {
     }, 1000);
   };
 
-  // Dummy data
-  const stories = Array.from({ length: 8 }).map((_, i) => ({
-    id: i,
-    user: `user_${i}`,
-    img: `https://i.pravatar.cc/150?img=${i + 20}`
-  }));
+  // Group stories by user
+  const groupedStories = useMemo(() => {
+    if (!stories) return [];
+    const grMap = {};
+    stories.forEach(story => {
+      const uid = story?.user?._id;
+      if (!uid) return;
+      if (!grMap[uid]) {
+        grMap[uid] = {
+          user: story.user,
+          items: []
+        };
+      }
+      grMap[uid].items.push(story);
+    });
+    // Reverse so oldest is first in the array for timeline playback
+    Object.values(grMap).forEach(gr => gr.items.reverse());
+    return Object.values(grMap);
+  }, [stories]);
+
+  // Story Upload Preview State
+  const [previewStoryFile, setPreviewStoryFile] = useState(null);
+  const [previewStoryUrl, setPreviewStoryUrl] = useState('');
+  const [isUploadingStory, setIsUploadingStory] = useState(false);
+
+  const handleStoryImageSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setPreviewStoryFile(file);
+      setPreviewStoryUrl(URL.createObjectURL(file));
+      e.target.value = null; // reset input
+    }
+  };
+
+  const handleUploadStory = async () => {
+    if (previewStoryFile) {
+      setIsUploadingStory(true);
+      await uploadStory(previewStoryFile);
+      setPreviewStoryFile(null);
+      setPreviewStoryUrl('');
+      setIsUploadingStory(false);
+    }
+  };
+
+  const cancelStoryUpload = () => {
+    setPreviewStoryFile(null);
+    setPreviewStoryUrl('');
+  };
+
+  // Story Viewer Timeline State
+  const [viewingUserGroup, setViewingUserGroup] = useState(null);
+  const [activeStoryIndex, setActiveStoryIndex] = useState(0);
+  const [viewedUserIds, setViewedUserIds] = useState(() => {
+    const saved = localStorage.getItem('viewedStoryUsers');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showStoryMenu, setShowStoryMenu] = useState(false);
+
+  const handleViewStory = (group) => {
+    setViewedUserIds(prev => {
+      if (!prev.includes(group.user._id)) {
+        const updated = [...prev, group.user._id];
+        localStorage.setItem('viewedStoryUsers', JSON.stringify(updated));
+        return updated;
+      }
+      return prev;
+    });
+    setViewingUserGroup(group);
+    setActiveStoryIndex(0);
+  };
+
+  useEffect(() => {
+    let timer;
+    if (viewingUserGroup && viewingUserGroup.items.length > 0 && !showStoryMenu) {
+      timer = setTimeout(() => {
+        handleNextStory();
+      }, 5000); // 5 seconds per story
+    }
+    return () => clearTimeout(timer);
+  }, [viewingUserGroup, activeStoryIndex, showStoryMenu]);
+
+  const handleNextStory = () => {
+    if (!viewingUserGroup) return;
+    setShowStoryMenu(false);
+    if (activeStoryIndex < viewingUserGroup.items.length - 1) {
+      setActiveStoryIndex(prev => prev + 1);
+    } else {
+      const allGroups = [];
+      const currGrp = groupedStories.find(g => g.user._id === userData?._id);
+      if (currGrp) allGroups.push(currGrp);
+      allGroups.push(...groupedStories.filter(g => g.user._id !== userData?._id));
+
+      const currentIndex = allGroups.findIndex(g => g.user._id === viewingUserGroup.user._id);
+      
+      if (currentIndex !== -1 && currentIndex < allGroups.length - 1) {
+        handleViewStory(allGroups[currentIndex + 1]);
+      } else {
+        setViewingUserGroup(null);
+        setActiveStoryIndex(0);
+      }
+    }
+  };
+
+  const handlePrevStory = () => {
+    setShowStoryMenu(false);
+    if (activeStoryIndex > 0) {
+      setActiveStoryIndex(prev => prev - 1);
+    } else {
+      const allGroups = [];
+      const currGrp = groupedStories.find(g => g.user._id === userData?._id);
+      if (currGrp) allGroups.push(currGrp);
+      allGroups.push(...groupedStories.filter(g => g.user._id !== userData?._id));
+
+      const currentIndex = allGroups.findIndex(g => g.user._id === viewingUserGroup.user._id);
+      if (currentIndex > 0) {
+        const prevGroup = allGroups[currentIndex - 1];
+        setViewedUserIds(prev => prev.includes(prevGroup.user._id) ? prev : [...prev, prevGroup.user._id]);
+        localStorage.setItem('viewedStoryUsers', JSON.stringify([...viewedUserIds, prevGroup.user._id]));
+        setViewingUserGroup(prevGroup);
+        setActiveStoryIndex(prevGroup.items.length - 1);
+      }
+    }
+  };
 
   const suggestions = [
     { id: 1, user: "john_doe", avatar: "https://i.pravatar.cc/150?img=33" },
@@ -76,6 +193,20 @@ const Home = () => {
             .animate-like-burst {
               animation: like-burst 1s ease-in-out forwards;
             }
+            @keyframes cube-slide {
+              0% { transform: translateX(50px) scale(0.95); opacity: 0; }
+              100% { transform: translateX(0) scale(1); opacity: 1; }
+            }
+            .animate-cube-slide {
+              animation: cube-slide 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+            }
+            @keyframes story-progress {
+              0% { width: 0%; }
+              100% { width: 100%; }
+            }
+            .animate-story-progress {
+              animation: story-progress 5s linear forwards;
+            }
           `}
         </style>
         <PostDetailModal
@@ -93,17 +224,147 @@ const Home = () => {
           
           {/* Stories Section */}
           <div className="w-full flex gap-4 overflow-x-auto scrollbar-hide py-4 mb-6">
-            {stories.map(story => (
-              <div key={story.id} className="flex flex-col items-center cursor-pointer min-w-[66px] max-w-[66px]">
-                <div className="w-[66px] h-[66px] rounded-full p-[2px] bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500">
+            
+            {/* Current User Story Bubble */}
+            <div className="flex flex-col items-center min-w-[66px] max-w-[66px] relative">
+              <div 
+                className={`w-[66px] h-[66px] rounded-full p-[2px] cursor-pointer ${
+                  groupedStories.find(g => g.user._id === userData?._id)
+                    ? (viewedUserIds.includes(userData?._id) ? 'bg-gray-300' : 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500')
+                    : 'border-2 border-gray-200'
+                }`}
+                onClick={() => {
+                  const currentUserGroup = groupedStories.find(g => g.user._id === userData?._id);
+                  if (currentUserGroup) {
+                    handleViewStory(currentUserGroup);
+                  }
+                }}
+              >
+                <div className="bg-white rounded-full p-[2px] h-full w-full relative">
+                  <img src={userData?.profilePic || avatar} alt="Your Story" className="rounded-full w-full h-full object-cover object-top" />
+                  {/* Plus Icon Overlay */}
+                  <label className="absolute bottom-0 -right-1 bg-blue-500 rounded-full w-5 h-5 flex items-center justify-center border-2 border-white cursor-pointer text-white text-xs font-bold" onClick={(e) => e.stopPropagation()}>
+                    +
+                    <input type="file" className="hidden" accept="image/*,video/*" onClick={(e) => e.stopPropagation()} onChange={handleStoryImageSelect} />
+                  </label>
+                </div>
+              </div>
+              <span className="text-[12px] mt-1 text-gray-800 truncate w-full text-center">Your story</span>
+            </div>
+
+            {/* Display Other Users Stories */}
+            {!isStoryLoading && groupedStories?.filter(g => g.user._id !== userData?._id).map(group => (
+              <div key={group.user._id} className="flex flex-col items-center cursor-pointer min-w-[66px] max-w-[66px]" onClick={() => handleViewStory(group)}>
+                <div className={`w-[66px] h-[66px] rounded-full p-[2px] ${viewedUserIds.includes(group.user._id) ? 'bg-gray-300' : 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500'}`}>
                   <div className="bg-white rounded-full p-[2px] h-full w-full">
-                    <img src={story.img} alt={story.user} className="rounded-full w-full h-full object-cover" />
+                    <img src={group.user?.profilePic || avatar} alt={group.user?.username} className="rounded-full w-full h-full object-cover object-top" />
                   </div>
                 </div>
-                <span className="text-[12px] mt-1 text-gray-800 truncate w-full text-center">{story.user}</span>
+                <span className="text-[12px] mt-1 text-gray-800 truncate w-full text-center">{group.user?.username}</span>
               </div>
             ))}
           </div>
+
+          {/* Upload Preview Modal */}
+          {previewStoryFile && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90">
+              <div className="relative w-full max-w-md h-[80vh] bg-[#262626] rounded-xl overflow-hidden flex flex-col justify-between">
+                <div className="p-4 flex items-center justify-between border-b border-gray-700">
+                  <button onClick={cancelStoryUpload} className="text-white">✕ Cancel</button>
+                  <h3 className="text-white font-semibold">Preview Story</h3>
+                  <div className="w-16"></div> {/* Spacer for centering */}
+                </div>
+                <div className="flex-1 flex items-center justify-center bg-black overflow-hidden relative">
+                  {previewStoryFile.type.includes('video') ? (
+                    <video src={previewStoryUrl} className="w-full h-full object-contain" autoPlay loop muted />
+                  ) : (
+                    <img src={previewStoryUrl} className="w-full h-full object-contain" alt="Preview" />
+                  )}
+                </div>
+                <div className="p-4 flex justify-end">
+                  <button 
+                    onClick={handleUploadStory} 
+                    disabled={isUploadingStory}
+                    className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {isUploadingStory ? 'Sharing...' : 'Share to Story >'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Instagram Story Viewer Timeline Modal */}
+          {viewingUserGroup && viewingUserGroup.items[activeStoryIndex] && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95">
+              <div key={viewingUserGroup.user._id} className="relative w-full max-w-[400px] h-[90vh] md:h-[80vh] bg-black rounded-lg overflow-hidden flex flex-col pointer-events-auto animate-cube-slide">
+                
+                {/* Progress Bars */}
+                <div className="absolute top-0 left-0 w-full p-2 flex gap-1 z-20">
+                  {viewingUserGroup.items.map((_, idx) => (
+                    <div key={idx} className="h-[2px] bg-gray-500/50 flex-1 rounded-full overflow-hidden">
+                      <div 
+                        key={idx === activeStoryIndex ? `active-${idx}` : `inactive-${idx}`}
+                        className={`h-full bg-white ${idx === activeStoryIndex ? 'animate-story-progress' : idx < activeStoryIndex ? 'w-full' : 'w-0'}`}
+                        style={{ animationPlayState: showStoryMenu ? 'paused' : 'running' }}
+                      ></div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Header */}
+                <div className="absolute top-2 left-0 w-full p-3 pt-4 flex items-center gap-3 z-20 pointer-events-none">
+                  <img src={viewingUserGroup.user?.profilePic || avatar} className="w-8 h-8 rounded-full border border-white/50 object-cover object-top" />
+                  <span className="text-white font-semibold text-sm drop-shadow-md">{viewingUserGroup.user?.username}</span>
+                  <span className="text-white/70 text-xs ml-2 drop-shadow-md">{timeAgo(viewingUserGroup.items[activeStoryIndex].createdAt)}</span>
+                  <div className="ml-auto flex items-center gap-4 pointer-events-auto relative">
+                    {viewingUserGroup.user._id === userData?._id && (
+                       <div className="relative">
+                         <BsThreeDots 
+                           className="text-white cursor-pointer drop-shadow-md" 
+                           size={20} 
+                           onClick={(e) => { e.stopPropagation(); setShowStoryMenu(!showStoryMenu); }} 
+                         />
+                         
+                         {showStoryMenu && (
+                           <div className="absolute top-8 right-0 bg-[#262626] rounded-xl shadow-lg w-[120px] overflow-hidden z-50 animate-cube-slide" onClick={(e) => e.stopPropagation()}>
+                              <button 
+                                className="w-full text-left px-4 py-3 text-red-500 font-semibold text-[14px] hover:bg-black/50 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteStory(viewingUserGroup.items[activeStoryIndex]._id);
+                                  setShowStoryMenu(false);
+                                  setViewingUserGroup(null);
+                                  setActiveStoryIndex(0);
+                                }}
+                              >
+                                Delete
+                              </button>
+                           </div>
+                         )}
+                       </div>
+                    )}
+                    <button className="text-white text-xl drop-shadow-md pb-[2px]" onClick={(e) => { e.stopPropagation(); setShowStoryMenu(false); setViewingUserGroup(null); setActiveStoryIndex(0); }}>✕</button>
+                  </div>
+                </div>
+
+                {/* Tap Zones for Navigation */}
+                <div className="absolute inset-0 z-10 flex">
+                  <div className="w-1/3 h-full cursor-pointer" onClick={handlePrevStory}></div>
+                  <div className="w-2/3 h-full cursor-pointer" onClick={handleNextStory}></div>
+                </div>
+
+                {/* Media Content */}
+                <div className="w-full h-full flex items-center justify-center">
+                  {viewingUserGroup.items[activeStoryIndex].type === 'video' ? (
+                     <video src={viewingUserGroup.items[activeStoryIndex].media} className="w-full h-full object-cover" autoPlay />
+                  ) : (
+                     <img src={viewingUserGroup.items[activeStoryIndex].media} className="w-full h-full object-cover" alt="Story" />
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Posts Feed */}
           <div className="w-full max-w-[470px] flex flex-col pb-20">

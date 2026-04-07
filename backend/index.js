@@ -6,6 +6,7 @@ import { connectDB } from "./config/db.js";
 import userRouter from "./routes/userRoutes.js";
 import postRouter from "./routes/postRoutes.js";
 import commentRouter from "./routes/commentRoutes.js";
+import storyRouter from "./routes/storyRoutes.js";
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.get("/", (req, res)=>{
 app.use("/api/user", userRouter)
 app.use("/api/posts", postRouter)
 app.use("/api/comments", commentRouter)
+app.use("/api/story", storyRouter)
 
 
 

@@ -11,7 +11,7 @@ export const createStory = async (req, res) =>{
             })
         }
 
-        const mediaUrl = await uploadImage(eq.file.path);
+        const mediaUrl = await uploadImage(req.file.path);
 
         if(!mediaUrl){
             return res.status(500).json({
@@ -20,9 +20,12 @@ export const createStory = async (req, res) =>{
             })
         }
 
+        const type = req.file.mimetype.includes("video") ? "video" : "image";
+
         const story = await Story.create({
             user: req.user._id,
-            media: mediaUrl
+            media: mediaUrl,
+            type: type
         })
 
         return res.status(201).json({
@@ -45,13 +48,12 @@ export const getStory = async (req, res) =>{
 
         const user = await User.findById(req.user.id);
 
-        const users = [...user.following, req.user.id];
+        const users = [...user.following, ...user.followers, req.user.id];
 
         const stories = await Story.find({user: {$in: users}}).populate("user", "username profilePic").sort({createdAt: -1})
 
         return res.status(200).json({
             success: true,
-            message: "Stories fetched successfully",
             stories
         })
     } catch (error) {
@@ -59,6 +61,40 @@ export const getStory = async (req, res) =>{
         return res.status(500).json({
             success: false,
             message: "Failed to get stories"
+        })
+    }
+}
+
+
+export const deleteStory = async (req, res) =>{
+    try {
+        const story = await Story.findById(req.params.id);
+
+        if(!story){
+            return res.status(404).json({
+                success: false,
+                message: "Story not found"
+            })
+        }
+
+        if(story.user.toString() !== req.user._id.toString()){
+            return res.status(403).json({
+                success: false,
+                message: "Unauthorized"
+            })
+        }
+
+        await story.deleteOne();
+
+        return res.status(200).json({
+            success: true,
+            message: "Story deleted successfully"
+        })
+    } catch (error) {
+        console.log("Error in deleteStory",error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to delete story"
         })
     }
 }

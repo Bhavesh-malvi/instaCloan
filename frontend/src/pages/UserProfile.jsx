@@ -90,6 +90,7 @@ const UserProfile = () => {
   }
 
   const isFollowing = userData?.following?.includes(profileUser._id);
+  const isFollower = userData?.followers?.includes(profileUser._id);
 
   const profileData = {
     username: profileUser.username,
@@ -152,7 +153,7 @@ const UserProfile = () => {
                             followers: [...(prev.followers || []), userData._id]
                         }));
                     }} className="bg-[#0095f6] hover:bg-[#1877f2] transition text-white font-semibold text-[14px] px-5 py-1.5 rounded-lg active:opacity-70">
-                        Follow
+                        {isFollower ? "Follow Back" : "Follow"}
                     </button>
                 )}
                 <button className="bg-[#efefef] hover:bg-[#dbdbdb] transition text-black font-semibold text-[14px] px-4 py-1.5 rounded-lg active:opacity-70">

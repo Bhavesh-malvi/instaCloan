@@ -23,6 +23,8 @@ export const AppProvider = ({ children }) => {
     const [feedPosts, setFeedPosts] = useState([])
     const [isFeedLoading, setIsFeedLoading] = useState(true);
     const [comments, setComments] = useState([])
+    const [stories, setStories] = useState([])
+    const [isStoryLoading, setIsStoryLoading] = useState(true)
 
 
 
@@ -153,6 +155,49 @@ export const AppProvider = ({ children }) => {
         await getPostById(postId);
     };
 
+
+    const getStories = async () => {
+        try {
+            setIsStoryLoading(true);
+            const { data } = await API.get("/story");
+            if (data.success) {
+                setStories(data.stories);
+            }
+        } catch (error) {
+            console.log("story fetch error", error);
+        } finally {
+            setIsStoryLoading(false);
+        }
+    }
+
+    const uploadStory = async (file) => {
+        try {
+            const formData = new FormData();
+            formData.append("media", file);
+            
+            const { data } = await API.post("/story/create", formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            if (data.success) {
+                getStories();
+            }
+        } catch (error) {
+            console.log("story upload error", error);
+        }
+    }
+
+    const deleteStory = async (storyId) => {
+        try {
+            const { data } = await API.delete(`/story/delete/${storyId}`);
+            if (data.success) {
+                getStories();
+            }
+        } catch (error) {
+            console.log("story delete error", error);
+        }
+    }
 
     const getFeedPost = async () =>{
         try {
@@ -305,6 +350,7 @@ export const AppProvider = ({ children }) => {
     useEffect(() => {
         getProfile();
         getFeedPost();
+        getStories();
     }, [])
 
     return (
@@ -313,7 +359,8 @@ export const AppProvider = ({ children }) => {
             isAuth, userData, handleLogout, isCheckingAuth, userPosts,
             getPostById, postDataById, isPostModalOpen, handlePostClick,
             setIsPostModalOpen, feedPosts, isFeedLoading, likePost, deletePost, addComment,
-            deleteComment,comments, timeAgo, followUser, unfollowUser
+            deleteComment,comments, timeAgo, followUser, unfollowUser,
+            stories, getStories, isStoryLoading, uploadStory, deleteStory
         }}>
             {children}
         </AppContext.Provider>
