@@ -1,12 +1,14 @@
 import express from "express"
 import dotenv from "dotenv"
 import cors from "cors"
+import http from "http"
 import cookieParser from "cookie-parser";
 import { connectDB } from "./config/db.js";
 import userRouter from "./routes/userRoutes.js";
 import postRouter from "./routes/postRoutes.js";
 import commentRouter from "./routes/commentRoutes.js";
 import storyRouter from "./routes/storyRoutes.js";
+import { initSocket } from "./config/socket.js";
 
 dotenv.config();
 
@@ -31,9 +33,13 @@ app.use("/api/posts", postRouter)
 app.use("/api/comments", commentRouter)
 app.use("/api/story", storyRouter)
 
+const server = http.createServer(app)
+
+initSocket(server);
 
 
-app.listen(process.env.PORT, ()=>{
+
+server.listen(process.env.PORT, ()=>{
     console.log(`Server is running on port http://localhost:${process.env.PORT}`)
     connectDB();
 })
