@@ -317,7 +317,7 @@ export const getSuggestedUser = async (req, res) =>{
 
         suggestion = suggestion.filter(
             id => id.toString() !== req.user._id.toString() && !currentUser.following.includes(id)
-        ).limit(10);
+        )
 
         const uniqueId = [...new Set(suggestion.map(id=> id.toString()))]
 

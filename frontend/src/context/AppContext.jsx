@@ -69,6 +69,8 @@ export const AppProvider = ({ children }) => {
                 // Fetch the user data since token is now safely in a secure HTTP-Only Cookie
                 await getProfile();
                 await getFeedPost();
+                await suggestedUser()
+                await getStories()
 
                 setUserForm({
                     fullname: "",
@@ -360,11 +362,27 @@ export const AppProvider = ({ children }) => {
         }
     }
 
+
+    const suggestedUser = async () =>{
+        try {
+            const {data} = await API.get("/user/suggested")
+            if(data.success){
+                console.log("suggested", data.message);
+            }
+        } catch (error) {
+            console.log("post controller error", error);
+            if (error.response?.data?.message) {
+                console.log(error.response.data.message);
+            }
+        }
+    }
+
     
 
 
     useEffect(() => {
         getProfile();
+        suggestedUser();
         getFeedPost();
         getStories();
     }, [])

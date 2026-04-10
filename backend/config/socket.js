@@ -17,11 +17,9 @@ export const initSocket = (server) => {
   });
 
   io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
 
     socket.on("join", async (userId) => {
       users[userId] = socket.id;
-      console.log("User joined:", userId);
 
       await Message.updateMany(
         {
@@ -80,7 +78,6 @@ export const initSocket = (server) => {
     });
 
     socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
 
       for (let userId in users) {
         if (users[userId] === socket.id) {
