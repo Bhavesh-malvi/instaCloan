@@ -12,7 +12,7 @@ import { PostSkeleton } from '../components/Skeletons';
 import { useRef } from 'react';
 
 const Home = () => {
-  const { userForm, userData, feedPosts, isFeedLoading, isPostModalOpen, handlePostClick, setIsPostModalOpen, postDataById, likePost, addComment, timeAgo, stories, uploadStory, isStoryLoading, deleteStory, viewStoryAPI, toggleLikeStoryAPI } = useContext(AppContext);
+  const { userForm, userData, feedPosts, isFeedLoading, isPostModalOpen, handlePostClick, setIsPostModalOpen, postDataById, likePost, addComment, timeAgo, stories, uploadStory, isStoryLoading, deleteStory, viewStoryAPI, toggleLikeStoryAPI, suggestedUsers, followUser } = useContext(AppContext);
   const [optionsModalOpen, setOptionsModalOpen] = useState(false);
   const [selectedPostOptions, setSelectedPostOptions] = useState(null);
 
@@ -348,14 +348,6 @@ const Home = () => {
       }
     }
   };
-
-  const suggestions = [
-    { id: 1, user: "john_doe", avatar: "https://i.pravatar.cc/150?img=33" },
-    { id: 2, user: "jane_smith", avatar: "https://i.pravatar.cc/150?img=41" },
-    { id: 3, user: "travel_diary", avatar: "https://i.pravatar.cc/150?img=52" },
-    { id: 4, user: "foodie_gram", avatar: "https://i.pravatar.cc/150?img=60" },
-    { id: 5, user: "photo_daily", avatar: "https://i.pravatar.cc/150?img=65" },
-  ];
 
   return (
       <div className="flex justify-center w-full mt-4 md:mt-10">
@@ -955,16 +947,16 @@ const Home = () => {
 
           {/* Suggestions List */}
           <div className="flex flex-col gap-3">
-            {suggestions.map(sug => (
-              <div key={sug.id} className="flex items-center justify-between">
+            {suggestedUsers?.map(sug => (
+              <div key={sug._id} className="flex items-center justify-between">
                 <div className="flex items-center gap-3 cursor-pointer">
-                  <img src={sug.avatar} alt="suggestion" className="w-11 h-11 rounded-full object-cover" />
+                  <img src={sug.profilePic || avatar} alt="suggestion" className="w-11 h-11 rounded-full object-cover" />
                   <div className="flex flex-col">
-                    <span className="text-[14px] font-semibold text-gray-900 leading-4">{sug.user}</span>
-                    <span className="text-[12px] text-gray-500">Suggested for you</span>
+                    <span className="text-[14px] font-semibold text-gray-900 leading-4">{sug.username}</span>
+                    <span className="text-[12px] text-gray-500">{sug.fullname || "Suggested for you"}</span>
                   </div>
                 </div>
-                <button className="text-[12px] font-semibold text-[#0095f6] hover:text-blue-900">Follow</button>
+                <button onClick={() => followUser(sug._id)} className="text-[12px] font-semibold text-[#0095f6] hover:text-blue-900">Follow</button>
               </div>
             ))}
           </div>

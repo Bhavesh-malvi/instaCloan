@@ -25,6 +25,7 @@ export const AppProvider = ({ children }) => {
     const [comments, setComments] = useState([])
     const [stories, setStories] = useState([])
     const [isStoryLoading, setIsStoryLoading] = useState(true)
+    const [suggestedUsers, setSuggestedUsers] = useState([])
 
 
 
@@ -333,6 +334,7 @@ export const AppProvider = ({ children }) => {
                 getFeedPost();
                 getPostById(postDataById._id);
                 getComment(postDataById._id);
+                suggestedUser();
             }
         } catch (error) {
             console.log("post controller error", error);
@@ -353,6 +355,7 @@ export const AppProvider = ({ children }) => {
                 getFeedPost();
                 getPostById(postDataById._id);
                 getComment(postDataById._id);
+                suggestedUser();
             }
         } catch (error) {
             console.log("post controller error", error);
@@ -367,10 +370,10 @@ export const AppProvider = ({ children }) => {
         try {
             const {data} = await API.get("/user/suggested")
             if(data.success){
-                console.log("suggested", data.message);
+                setSuggestedUsers(data.users);
             }
         } catch (error) {
-            console.log("post controller error", error);
+            console.log("suggested user fetch error", error);
             if (error.response?.data?.message) {
                 console.log(error.response.data.message);
             }
@@ -395,7 +398,7 @@ export const AppProvider = ({ children }) => {
             setIsPostModalOpen, feedPosts, isFeedLoading, likePost, deletePost, addComment,
             deleteComment,comments, timeAgo, followUser, unfollowUser,
             stories, getStories, isStoryLoading, uploadStory, deleteStory,
-            toggleLikeStoryAPI, viewStoryAPI,
+            toggleLikeStoryAPI, viewStoryAPI, suggestedUsers,
             navigate
         }}>
             {children}

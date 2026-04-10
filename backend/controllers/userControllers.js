@@ -307,23 +307,54 @@ export const unfollowUser = async (req, res) => {
 
 export const getSuggestedUser = async (req, res) =>{
     try {
-        const currentUser = await User.findById(req.user._id);
+        const currentUserId = req.user._id.toString();
+        const currentUser = await User.findById(currentUserId);
 
-        const followingUser = await User.find({
+        const followingUsers = await User.find({
             _id: {$in: currentUser.following}
         }).select("following");
 
-        let suggestion =  followingUser.flatMap(user => user.following);
+        const followersUsers = await User.find({
+            _id: {$in: currentUser.followers}
+        }).select("following");
 
-        suggestion = suggestion.filter(
-            id => id.toString() !== req.user._id.toString() && !currentUser.following.includes(id)
-        )
+        const suggestionFromFollowing = followingUsers.flatMap(user => user.following);
+        const suggestionFromFollowers = followersUsers.flatMap(user => user.following);
+        const followersThemselves = currentUser.followers;
 
-        const uniqueId = [...new Set(suggestion.map(id=> id.toString()))]
+        let allSuggestions = [
+            ...suggestionFromFollowing,
+            ...suggestionFromFollowers,
+            ...followersThemselves
+        ];
 
-        const users = await User.find({
+        const currentUserFollowingsStr = currentUser.following.map(id => id.toString());
+
+        // Filter out current user and already followed users
+        let suggestion = allSuggestions.filter(
+            id => id.toString() !== currentUserId && !currentUserFollowingsStr.includes(id.toString())
+        );
+
+        const uniqueId = [...new Set(suggestion.map(id=> id.toString()))];
+
+        let users = await User.find({
             _id: {$in : uniqueId}
-        }).select("username profilePic");
+        }).select("username profilePic fullname");
+
+        // If less than 5 suggestions, bring in some random pool of users
+        if (users.length < 5) {
+            const existingUserIds = users.map(u => u._id.toString());
+            const excludeIds = [currentUserId, ...currentUserFollowingsStr, ...existingUserIds];
+            
+            const extraUsers = await User.find({
+                _id: { $nin: excludeIds }
+            }).select("username profilePic fullname").limit(5 - users.length);
+            
+            users = [...users, ...extraUsers];
+        }
+
+        // Limit maximum recommendations
+        users = users.slice(0, 10);
 
         return res.status(200).json({
             success: true,
