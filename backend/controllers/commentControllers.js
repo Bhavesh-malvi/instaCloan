@@ -1,5 +1,7 @@
 import Post from "../models/Post.js";
 import Comment from "../models/Comment.js";
+import Notification from "../models/Notification.js";
+import { getReceiverSocketId, io } from "../config/socket.js";
 
 export const addComment = async (req, res) =>{
     try {
@@ -30,6 +32,23 @@ export const addComment = async (req, res) =>{
 
         post.comments.push(comment._id);
         await post.save();
+
+        if (post.user.toString() !== req.user._id.toString()) {
+            const newNotification = new Notification({
+                sender: req.user._id,
+                receiver: post.user,
+                type: "comment",
+                post: post._id,
+                text: text
+            });
+            await newNotification.save();
+
+            const receiverSocketId = getReceiverSocketId(post.user.toString());
+            if (receiverSocketId) {
+                await newNotification.populate("sender", "username profilePic");
+                io.to(receiverSocketId).emit("newNotification", newNotification);
+            }
+        }
 
         return res.status(201).json({
             success: true,

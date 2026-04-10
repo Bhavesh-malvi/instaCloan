@@ -8,6 +8,8 @@ import { AppContext } from './context/AppContext'
 import Profile from './pages/Profile'
 import Search from './pages/Search'
 import UserProfile from './pages/UserProfile'
+import Messages from './pages/Messages'
+import Notifications from './pages/Notifications'
 
 // Dummy Component indicating page works inside Layout
 const PlaceholderPage = ({ title }) => (
@@ -40,8 +42,8 @@ const App = () => {
             <Route path='/search' element={<Search />} />
             <Route path='/explore' element={<PlaceholderPage title="Explore" />} />
             <Route path='/reels' element={<PlaceholderPage title="Reels" />} />
-            <Route path='/messages' element={<PlaceholderPage title="Messages" />} />
-            <Route path='/notifications' element={<PlaceholderPage title="Notifications" />} />
+            <Route path='/messages' element={<Messages />} />
+            <Route path='/notifications' element={<Notifications />} />
             <Route path='/create' element={<PlaceholderPage title="Create" />} />
             <Route path='/profile' element={<Profile />} />
             <Route path='/profile/:username' element={<UserProfile />} />

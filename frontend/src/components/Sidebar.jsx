@@ -7,12 +7,15 @@ import { BiMoviePlay } from "react-icons/bi";
 import { RiMessengerLine } from "react-icons/ri";
 import { CgAddR } from "react-icons/cg";
 import { RxHamburgerMenu } from "react-icons/rx";
+import { FaHeart, FaCommentDots } from "react-icons/fa";
 import { AppContext } from '../context/AppContext';
+import { SocketContext } from '../context/SocketContext';
 import avatar from '../assets/img/avatar.png';
 import CreatePostModal from './CreatePostModal';
 
 const Sidebar = () => {
   const { userData, handleLogout } = useContext(AppContext);
+  const { unreadMessageCount, hasUnreadNotifications, toastNotifications } = useContext(SocketContext);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const moreMenuRef = useRef(null);
@@ -66,24 +69,54 @@ const Sidebar = () => {
 
       <div className="flex-1 px-3">
         {sidebarLinks.map((link) => (
+          <div key={link.name} className="relative w-full block">
           <NavLink
             to={link.path}
-            key={link.name} 
             onClick={(e) => {
               if (link.name === 'Create') {
                 e.preventDefault();
                 setIsCreateModalOpen(true);
               }
             }}
-            className={({isActive}) => `flex items-center gap-4 p-3 my-[2px] rounded-lg cursor-pointer transition ${isActive && link.name !== 'Create' ? 'font-bold' : 'font-normal hover:bg-gray-100'}`}
+            className={({isActive}) => `flex items-center gap-4 p-3 my-[2px] rounded-lg cursor-pointer transition relative ${isActive && link.name !== 'Create' ? 'font-bold' : 'font-normal hover:bg-gray-100'}`}
           >
-            <div className="flex items-center justify-center lg:justify-start w-full gap-4 text-black">
-              <div className="group-hover:scale-105 transition-transform text-black flex items-center justify-center">
+            <div className="flex items-center justify-center lg:justify-start w-full gap-4 text-black relative">
+              <div className="group-hover:scale-105 transition-transform text-black flex items-center justify-center relative">
                 {link.icon}
+                {link.name === 'Messages' && unreadMessageCount > 0 && (
+                   <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center border border-white font-bold">{unreadMessageCount}</div>
+                )}
+                {link.name === 'Notifications' && hasUnreadNotifications && (
+                   <div className="absolute top-0 right-0 bg-red-500 w-2.5 h-2.5 rounded-full border-2 border-white"></div>
+                )}
               </div>
               <span className="hidden lg:block text-[15px]">{link.name}</span>
             </div>
           </NavLink>
+
+          {/* Toast specifically attached next to Notifications */}
+          {link.name === 'Notifications' && toastNotifications && toastNotifications.length > 0 && (
+            <div className="absolute top-1/2 -translate-y-1/2 left-full -ml-18 z-[9999] flex flex-col gap-3 pointer-events-none">
+              {toastNotifications.map((toast) => (
+                <div key={toast.toastId} className="flex items-center gap-3 bg-white p-3 rounded-xl shadow-lg border border-gray-200 w-[260px] opacity-100">
+                   {toast.type === 'like' ? (
+                       <FaHeart size={22} className="text-red-500" />
+                   ) : toast.type === 'comment' ? (
+                       <FaCommentDots size={22} className="text-[#0095F6]" />
+                   ) : (
+                       <FiHeart size={22} className="text-black" />
+                   )}
+                   <div className="flex flex-col flex-1 overflow-hidden">
+                       <span className="text-sm font-semibold truncate text-gray-900">{toast.sender?.username || 'Someone'}</span>
+                       <span className="text-xs text-gray-500 truncate">
+                          {toast.type === 'like' ? 'liked your post.' : toast.type === 'comment' ? `commented: ${toast.text}` : 'started following you.'}
+                       </span>
+                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+          </div>
         ))}
       </div>
       
@@ -116,6 +149,8 @@ const Sidebar = () => {
         isOpen={isCreateModalOpen} 
         onClose={() => setIsCreateModalOpen(false)} 
       />
+
+      {/* Old Toast Position Removed */}
     </div>
   );
 };

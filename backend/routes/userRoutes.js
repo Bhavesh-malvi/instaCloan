@@ -1,5 +1,5 @@
 import express from "express";
-import { followUser, getProfile, getSuggestedUser, logout, searchUser, signin, signup, unfollowUser, updateUser, getUserProfileByUsername } from "../controllers/userControllers.js";
+import { followUser, getProfile, getSuggestedUser, logout, searchUser, signin, signup, unfollowUser, updateUser, getUserProfileByUsername, getConnections } from "../controllers/userControllers.js";
 import { AuthUser } from "../middleware/authUser.js";
 import upload from "../middleware/multer.js";
 
@@ -17,5 +17,6 @@ userRouter.post("/unfollow/:userId", AuthUser, unfollowUser);
 userRouter.get("/suggested", AuthUser, getSuggestedUser);
 userRouter.get("/search", AuthUser, searchUser);
 userRouter.get("/profile-info/:username", AuthUser, getUserProfileByUsername);
+userRouter.get("/connections", AuthUser, getConnections);
 
 export default userRouter

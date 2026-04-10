@@ -1,6 +1,8 @@
 import uploadImage from "../config/cloudinary.js";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
+import Notification from "../models/Notification.js";
+import { getReceiverSocketId, io } from "../config/socket.js";
 
 export const createPost = async (req, res) => {
     try {
@@ -34,7 +36,8 @@ export const createPost = async (req, res) => {
         const post = await Post.create({
             user: req.user._id,
             caption,
-            images: imageUrls
+            images: imageUrls,
+            song: req.body.song ? JSON.parse(req.body.song) : null
         });
 
         return res.status(201).json({
@@ -75,6 +78,22 @@ export const likePost = async (req, res) => {
             )
         } else {
             post.likes.push(req.user._id)
+            
+            if (post.user.toString() !== req.user._id.toString()) {
+                const newNotification = new Notification({
+                    sender: req.user._id,
+                    receiver: post.user,
+                    type: "like",
+                    post: post._id
+                });
+                await newNotification.save();
+
+                const receiverSocketId = getReceiverSocketId(post.user.toString());
+                if (receiverSocketId) {
+                    await newNotification.populate("sender", "username profilePic");
+                    io.to(receiverSocketId).emit("newNotification", newNotification);
+                }
+            }
         }
 
         await post.save();

@@ -3,7 +3,7 @@ import Message from "../models/Message.js";
 
 export const sendMessage = async (req, res) => {
     try {
-        const {receiver, text} = req.body;
+        const {receiver, text, story} = req.body;
 
         let mediaUrl = "";
 
@@ -22,7 +22,8 @@ export const sendMessage = async (req, res) => {
             sender: req.user._id,
             receiver,
             text,
-            media: mediaUrl
+            media: mediaUrl,
+            story: story ? story : null
         })
 
         return res.status(201).json({
@@ -50,7 +51,10 @@ export const getMessages = async (req, res) =>{
                 {sender: userId, receiver: req.user.id}
             ],
             deletedAt: null
-        }).sort({createdAt: 1}).populate("sender", "username profilePic").populate("receiver", "username profilePic")
+        }).sort({createdAt: 1})
+          .populate("sender", "username profilePic")
+          .populate("receiver", "username profilePic")
+          .populate("story", "media type");
 
         return res.status(200).json({
             success: true,
@@ -128,4 +132,26 @@ export const deleteMessage = async (req, res) => {
       success: false
     });
   }
+};
+
+export const getUnreadMessageCount = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const unreadMessages = await Message.distinct("sender", {
+            receiver: userId,
+            seen: false
+        });
+
+        return res.status(200).json({
+            success: true,
+            count: unreadMessages.length
+        });
+    } catch (error) {
+        console.log("Error in getUnreadMessageCount", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to fetch unread count"
+        });
+    }
 };

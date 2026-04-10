@@ -1,8 +1,12 @@
 import { Server } from "socket.io";
-import Message from "./models/Message.js";
+import Message from "../models/Message.js";
 
-let io;
+export let io;
 const users = {}; 
+
+export const getReceiverSocketId = (receiverId) => {
+    return users[receiverId];
+};
 
 export const initSocket = (server) => {
   io = new Server(server, {

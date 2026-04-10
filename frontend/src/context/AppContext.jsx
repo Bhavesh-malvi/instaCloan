@@ -170,10 +170,12 @@ export const AppProvider = ({ children }) => {
         }
     }
 
-    const uploadStory = async (file) => {
+    const uploadStory = async (file, song = null, overlays = null) => {
         try {
             const formData = new FormData();
             formData.append("media", file);
+            if (song) formData.append("song", JSON.stringify(song));
+            if (overlays) formData.append("overlays", JSON.stringify(overlays));
             
             const { data } = await API.post("/story/create", formData, {
                 headers: {
@@ -196,6 +198,26 @@ export const AppProvider = ({ children }) => {
             }
         } catch (error) {
             console.log("story delete error", error);
+        }
+    }
+
+    const toggleLikeStoryAPI = async (storyId) => {
+        try {
+            const { data } = await API.post(`/story/like/${storyId}`);
+            if (data.success) {
+                getStories();
+            }
+        } catch (error) {
+            console.log("story like error", error);
+        }
+    }
+
+    const viewStoryAPI = async (storyId) => {
+        try {
+            await API.post(`/story/view/${storyId}`);
+            // No need to refetch entire stories just for views, we manage viewers list optimistically
+        } catch (error) {
+            console.log("story view error", error);
         }
     }
 
@@ -354,7 +376,9 @@ export const AppProvider = ({ children }) => {
             getPostById, postDataById, isPostModalOpen, handlePostClick,
             setIsPostModalOpen, feedPosts, isFeedLoading, likePost, deletePost, addComment,
             deleteComment,comments, timeAgo, followUser, unfollowUser,
-            stories, getStories, isStoryLoading, uploadStory, deleteStory
+            stories, getStories, isStoryLoading, uploadStory, deleteStory,
+            toggleLikeStoryAPI, viewStoryAPI,
+            navigate
         }}>
             {children}
         </AppContext.Provider>

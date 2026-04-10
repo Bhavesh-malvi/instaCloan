@@ -1,6 +1,8 @@
 import uploadImage from "../config/cloudinary.js";
 import Story from "../models/Story.js";
 import User from "../models/User.js";
+import Notification from "../models/Notification.js";
+import { getReceiverSocketId, io } from "../config/socket.js";
 
 export const createStory = async (req, res) =>{
     try {
@@ -25,7 +27,9 @@ export const createStory = async (req, res) =>{
         const story = await Story.create({
             user: req.user._id,
             media: mediaUrl,
-            type: type
+            type: type,
+            song: req.body.song ? JSON.parse(req.body.song) : null,
+            overlays: req.body.overlays ? JSON.parse(req.body.overlays) : null
         })
 
         return res.status(201).json({
@@ -50,7 +54,10 @@ export const getStory = async (req, res) =>{
 
         const users = [...user.following, ...user.followers, req.user.id];
 
-        const stories = await Story.find({user: {$in: users}}).populate("user", "username profilePic").sort({createdAt: -1})
+        const stories = await Story.find({user: {$in: users}})
+            .populate("user", "username profilePic")
+            .populate("viewers.user", "username profilePic")
+            .sort({createdAt: -1})
 
         return res.status(200).json({
             success: true,
@@ -98,3 +105,81 @@ export const deleteStory = async (req, res) =>{
         })
     }
 }
+
+
+export const toggleLikeStory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const story = await Story.findById(id);
+
+        if (!story) {
+            return res.status(404).json({ success: false, message: "Story not found" });
+        }
+
+        const isLiked = story.likes.includes(req.user._id);
+
+        if (isLiked) {
+            story.likes = story.likes.filter(userId => userId.toString() !== req.user._id.toString());
+        } else {
+            story.likes.push(req.user._id);
+
+            // Create notification if liking someone else's story
+            if (story.user.toString() !== req.user._id.toString()) {
+                const newNotification = new Notification({
+                    sender: req.user._id,
+                    receiver: story.user,
+                    type: "storyLike",
+                    story: story._id
+                });
+                await newNotification.save();
+
+                const receiverSocketId = getReceiverSocketId(story.user.toString());
+                if (receiverSocketId) {
+                    await newNotification.populate("sender", "username profilePic");
+                    await newNotification.populate("story", "type media");
+                    io.to(receiverSocketId).emit("newNotification", newNotification);
+                }
+            }
+        }
+
+        await story.save();
+
+        return res.status(200).json({
+            success: true,
+            message: isLiked ? "Story unliked" : "Story liked",
+            likes: story.likes
+        });
+
+    } catch (error) {
+        console.log("Error in toggleLikeStory", error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};
+
+export const viewStory = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const story = await Story.findById(id);
+
+        if (!story) {
+            return res.status(404).json({ success: false, message: "Story not found" });
+        }
+
+        // Check if user already viewed
+        const hasViewed = story.viewers.some(v => v.user.toString() === req.user._id.toString());
+
+        if (!hasViewed) {
+            story.viewers.push({ user: req.user._id, viewedAt: Date.now() });
+            await story.save();
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Story marked as viewed"
+        });
+
+    } catch (error) {
+        console.log("Error in viewStory", error);
+        return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+};

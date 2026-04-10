@@ -12,7 +12,7 @@ const messageSchema = new mongoose.Schema({
     }, 
     text:{
         type: String,
-        required: true
+        default: ""
     },
     media:{
         type: String,
@@ -29,6 +29,10 @@ const messageSchema = new mongoose.Schema({
     deletedAt:{
         type: Date,
         default: null
+    },
+    story: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Story"
     }
 }, {timestamps: true})
 

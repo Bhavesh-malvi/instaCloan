@@ -2,6 +2,8 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs"
 import { generateToken } from "../utils/GenerateToken.js";
 import uploadImage from "../config/cloudinary.js";
+import Notification from "../models/Notification.js";
+import { getReceiverSocketId, io } from "../config/socket.js";
 
 export const signup = async (req, res) => {
     try {
@@ -237,6 +239,19 @@ export const followUser = async (req, res) => {
         await currentUser.save();
         await userToFollow.save();
 
+        const newNotification = new Notification({
+            sender: currentUserid,
+            receiver: userId,
+            type: "follow",
+        });
+        await newNotification.save();
+
+        const receiverSocketId = getReceiverSocketId(userId.toString());
+        if (receiverSocketId) {
+            await newNotification.populate("sender", "username profilePic");
+            io.to(receiverSocketId).emit("newNotification", newNotification);
+        }
+
         return res.status(200).json({
             success: true,
             message: "User followed successfully"
@@ -357,5 +372,39 @@ export const getUserProfileByUsername = async (req, res) => {
     } catch (error) {
         console.log(error);
         return res.status(500).json({ success: false, message: "Internal server error" });
+    }
+}
+
+export const getConnections = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const currentUser = await User.findById(userId);
+
+        if (!currentUser) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found"
+            });
+        }
+
+        // Unified list of followers and followings
+        const connectionIds = [...new Set([...currentUser.following.map(id=>id.toString()), ...currentUser.followers.map(id=>id.toString())])];
+
+        const connections = await User.find({
+            _id: { $in: connectionIds }
+        }).select("username profilePic fullname");
+
+        return res.status(200).json({
+            success: true,
+            connections
+        });
+
+    } catch (error) {
+        console.log("Error in getConnections", error);
+        return res.status(500).json({
+            success: false,
+            message: "Internal server error"
+        });
     }
 }

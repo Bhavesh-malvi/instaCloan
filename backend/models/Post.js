@@ -26,7 +26,16 @@ const postSchema = new mongoose.Schema({
             ref: "Comment"
         }
     ],
-    
+    song: {
+        name: String,
+        image: String,
+        file: String,
+        duration: String,
+        startTime: {
+            type: Number,
+            default: 0
+        }
+    }
 
 }, {timestamps: true})
 

@@ -1,15 +1,18 @@
 import React, { useContext, useState, useEffect, useMemo } from 'react';
+import API from '../api/axios';
 import { AppContext } from '../context/AppContext';
-import { FiMessageCircle, FiSend, FiBookmark, FiHeart, FiSearch } from "react-icons/fi";
+import { FiMessageCircle, FiSend, FiBookmark, FiHeart, FiSearch, FiMusic, FiVolume2, FiVolumeX, FiType, FiEye, FiEyeOff, FiPlus, FiXCircle } from "react-icons/fi";
 import { BsThreeDots } from "react-icons/bs";
 import { FaHeart } from "react-icons/fa";
 import avatar from '../assets/img/avatar.png';
 import PostDetailModal from '../components/PostDetailModal';
 import PostOptionsModal from '../components/PostOptionsModal';
+import SongSelector from '../components/SongSelector';
 import { PostSkeleton } from '../components/Skeletons';
+import { useRef } from 'react';
 
 const Home = () => {
-  const { userForm, userData, feedPosts, isFeedLoading, isPostModalOpen, handlePostClick, setIsPostModalOpen, postDataById, likePost, addComment, timeAgo, stories, uploadStory, isStoryLoading, deleteStory } = useContext(AppContext);
+  const { userForm, userData, feedPosts, isFeedLoading, isPostModalOpen, handlePostClick, setIsPostModalOpen, postDataById, likePost, addComment, timeAgo, stories, uploadStory, isStoryLoading, deleteStory, viewStoryAPI, toggleLikeStoryAPI } = useContext(AppContext);
   const [optionsModalOpen, setOptionsModalOpen] = useState(false);
   const [selectedPostOptions, setSelectedPostOptions] = useState(null);
 
@@ -72,6 +75,30 @@ const Home = () => {
   const [previewStoryFile, setPreviewStoryFile] = useState(null);
   const [previewStoryUrl, setPreviewStoryUrl] = useState('');
   const [isUploadingStory, setIsUploadingStory] = useState(false);
+  
+  // Story Overlay State
+  const [storySong, setStorySong] = useState(null);
+  const [isSongSelectorOpenInStory, setIsSongSelectorOpenInStory] = useState(false);
+  const [storyText, setStoryText] = useState('');
+  const [isAddingText, setIsAddingText] = useState(false);
+  const [tempText, setTempText] = useState('');
+  const [storyTextPos, setStoryTextPos] = useState({ x: 50, y: 50 }); // percentages
+  const [storySongPos, setStorySongPos] = useState({ x: 50, y: 70 });
+  const [isStorySongVisible, setIsStorySongVisible] = useState(true);
+  const [isStoryMuted, setIsStoryMuted] = useState(false);
+  const [songStartTime, setSongStartTime] = useState(0);
+
+  const parseStrDurationToSec = (durStr) => {
+    if (!durStr) return 0;
+    const parts = durStr.split(':');
+    if (parts.length === 2) {
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+    return 0;
+  };
+
+  const [dragging, setDragging] = useState(null); // 'text' or 'song'
+  const previewRef = useRef(null);
 
   const handleStoryImageSelect = (e) => {
     const file = e.target.files[0];
@@ -85,26 +112,162 @@ const Home = () => {
   const handleUploadStory = async () => {
     if (previewStoryFile) {
       setIsUploadingStory(true);
-      await uploadStory(previewStoryFile);
-      setPreviewStoryFile(null);
-      setPreviewStoryUrl('');
+      const overlays = {
+        song: { ...storySongPos, visible: isStorySongVisible },
+        text: storyText ? { content: storyText, ...storyTextPos } : null
+      };
+      const finalSong = storySong ? { ...storySong, startTime: songStartTime } : null;
+      await uploadStory(previewStoryFile, finalSong, overlays);
+      resetStoryState();
       setIsUploadingStory(false);
     }
   };
 
-  const cancelStoryUpload = () => {
+  const resetStoryState = () => {
     setPreviewStoryFile(null);
     setPreviewStoryUrl('');
+    setStorySong(null);
+    setStoryText('');
+    setTempText('');
+    setIsAddingText(false);
+    setIsSongSelectorOpenInStory(false);
+    setStoryTextPos({ x: 50, y: 50 });
+    setStorySongPos({ x: 50, y: 70 });
+    setIsStorySongVisible(true);
+    setSongStartTime(0);
+    if(storySong) {
+       storyAudio.pause();
+       storyAudio.src = "";
+    }
   };
 
+  const cancelStoryUpload = () => {
+    resetStoryState();
+  };
+
+  // Dragging Logic for Preview
+  const handleDragStart = (e, type) => {
+    setDragging(type);
+  };
+
+  const handleDragMove = (e) => {
+    if (!dragging || !previewRef.current) return;
+    
+    const rect = previewRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    // Constrain to 0-100%
+    const constrainedX = Math.max(10, Math.min(90, x));
+    const constrainedY = Math.max(10, Math.min(90, y));
+
+    if (dragging === 'text') {
+      setStoryTextPos({ x: constrainedX, y: constrainedY });
+    } else if (dragging === 'song') {
+      setStorySongPos({ x: constrainedX, y: constrainedY });
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDragging(null);
+  };
+
+  // Story Viewer Audio State
+  const [storyAudio] = useState(new Audio());
+  const [isMuted, setIsMuted] = useState(false);
+  
+  // Feed Post Audio State
+  const [feedAudio] = useState(new Audio());
+  const [playingPostId, setPlayingPostId] = useState(null);
+  const [isFeedMuted, setIsFeedMuted] = useState(false);
+
   // Story Viewer Timeline State
-  const [viewingUserGroup, setViewingUserGroup] = useState(null);
+  const [viewingUserId, setViewingUserId] = useState(null);
+  
+  const viewingUserGroup = useMemo(() => {
+     if (!viewingUserId) return null;
+     return groupedStories.find(g => g.user._id === viewingUserId) || null;
+  }, [viewingUserId, groupedStories]);
+
   const [activeStoryIndex, setActiveStoryIndex] = useState(0);
   const [viewedUserIds, setViewedUserIds] = useState(() => {
     const saved = localStorage.getItem('viewedStoryUsers');
     return saved ? JSON.parse(saved) : [];
   });
   const [showStoryMenu, setShowStoryMenu] = useState(false);
+  const [showStoryViewsModal, setShowStoryViewsModal] = useState(false);
+  
+  const handleStoryReply = async (receiverId, storyId, text) => {
+    try {
+        const formData = new FormData();
+        formData.append('receiver', receiverId);
+        formData.append('text', text);
+        formData.append('story', storyId);
+        
+        const { data } = await API.post(`/messages/send/${receiverId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        if (data.success) {
+            console.log("Story reply sent!");
+        }
+    } catch (error) {
+        console.error("Failed to send story reply", error);
+    }
+  };
+
+  // Upload Preview Audio preview
+  useEffect(() => {
+    if (previewStoryFile && storySong && !isStoryMuted) {
+      if (!storyAudio.src.includes(storySong.file)) {
+        storyAudio.src = storySong.file;
+        storyAudio.currentTime = songStartTime;
+      }
+      storyAudio.play().catch(e => console.log("Audio preview blocked", e));
+    } else {
+      storyAudio.pause();
+    }
+  }, [storySong, isStoryMuted, previewStoryFile, storyAudio, songStartTime]);
+
+  useEffect(() => {
+    if (viewingUserGroup && viewingUserGroup.items[activeStoryIndex]?.song?.name) {
+      const song = viewingUserGroup.items[activeStoryIndex].song;
+      if (!storyAudio.src.includes(song.file)) {
+        storyAudio.src = song.file;
+        storyAudio.currentTime = song.startTime || 0;
+      }
+      storyAudio.muted = isMuted;
+      storyAudio.play().catch(e => console.log("Autoplay blocked", e));
+    } else {
+      storyAudio.pause();
+      storyAudio.src = "";
+    }
+  }, [viewingUserGroup, activeStoryIndex, isMuted, storyAudio]);
+
+  useEffect(() => {
+    storyAudio.muted = isMuted;
+  }, [isMuted, storyAudio]);
+
+  const togglePostMusic = (e, post) => {
+    e.stopPropagation();
+    if (playingPostId === post._id) {
+      feedAudio.pause();
+      setPlayingPostId(null);
+    } else {
+      if (post.song?.name) {
+        if (!feedAudio.src.includes(post.song.file)) {
+           feedAudio.src = post.song.file;
+           feedAudio.currentTime = post.song.startTime || 0;
+        }
+        feedAudio.muted = isFeedMuted;
+        feedAudio.play();
+        setPlayingPostId(post._id);
+      }
+    }
+  };
+
+  useEffect(() => {
+    feedAudio.muted = isFeedMuted;
+  }, [isFeedMuted, feedAudio]);
 
   const handleViewStory = (group) => {
     setViewedUserIds(prev => {
@@ -115,16 +278,30 @@ const Home = () => {
       }
       return prev;
     });
-    setViewingUserGroup(group);
+    setViewingUserId(group.user._id);
     setActiveStoryIndex(0);
   };
 
   useEffect(() => {
+    if (viewingUserGroup && viewingUserGroup.user._id !== userData?._id) {
+       const activeItem = viewingUserGroup.items[activeStoryIndex];
+       if (activeItem) {
+          const alreadyViewed = activeItem.viewers?.some(v => v.user === userData?._id || v.user._id === userData?._id);
+          if (!alreadyViewed) {
+             viewStoryAPI(activeItem._id);
+          }
+       }
+    }
+  }, [viewingUserGroup, activeStoryIndex, userData, viewStoryAPI]);
+
+  useEffect(() => {
     let timer;
     if (viewingUserGroup && viewingUserGroup.items.length > 0 && !showStoryMenu) {
+      const activeItem = viewingUserGroup.items[activeStoryIndex];
+      const durationMs = (activeItem?.song?.name || activeItem?.type === 'video') ? 15000 : 5000;
       timer = setTimeout(() => {
         handleNextStory();
-      }, 5000); // 5 seconds per story
+      }, durationMs);
     }
     return () => clearTimeout(timer);
   }, [viewingUserGroup, activeStoryIndex, showStoryMenu]);
@@ -145,7 +322,7 @@ const Home = () => {
       if (currentIndex !== -1 && currentIndex < allGroups.length - 1) {
         handleViewStory(allGroups[currentIndex + 1]);
       } else {
-        setViewingUserGroup(null);
+        setViewingUserId(null);
         setActiveStoryIndex(0);
       }
     }
@@ -166,7 +343,7 @@ const Home = () => {
         const prevGroup = allGroups[currentIndex - 1];
         setViewedUserIds(prev => prev.includes(prevGroup.user._id) ? prev : [...prev, prevGroup.user._id]);
         localStorage.setItem('viewedStoryUsers', JSON.stringify([...viewedUserIds, prevGroup.user._id]));
-        setViewingUserGroup(prevGroup);
+        setViewingUserId(prevGroup.user._id);
         setActiveStoryIndex(prevGroup.items.length - 1);
       }
     }
@@ -275,23 +452,138 @@ const Home = () => {
                   <h3 className="text-white font-semibold">Preview Story</h3>
                   <div className="w-16"></div> {/* Spacer for centering */}
                 </div>
-                <div className="flex-1 flex items-center justify-center bg-black overflow-hidden relative">
+                <div 
+                  className="flex-1 flex items-center justify-center bg-black overflow-hidden relative"
+                  ref={previewRef}
+                  onMouseMove={handleDragMove}
+                  onMouseUp={handleDragEnd}
+                  onMouseLeave={handleDragEnd}
+                >
                   {previewStoryFile.type.includes('video') ? (
-                    <video src={previewStoryUrl} className="w-full h-full object-contain" autoPlay loop muted />
+                    <video src={previewStoryUrl} className="w-full h-full object-contain" autoPlay loop muted={isStoryMuted} />
                   ) : (
                     <img src={previewStoryUrl} className="w-full h-full object-contain" alt="Preview" />
                   )}
+
+                  {/* Overlays */}
+                  {storyText && (
+                    <div 
+                      className="absolute text-white font-bold text-2xl cursor-move whitespace-nowrap drop-shadow-md z-30"
+                      style={{ left: `${storyTextPos.x}%`, top: `${storyTextPos.y}%`, transform: 'translate(-50%, -50%)' }}
+                      onMouseDown={(e) => handleDragStart(e, 'text')}
+                    >
+                      {storyText}
+                    </div>
+                  )}
+
+                  {storySong && isStorySongVisible && (
+                    <div 
+                      className="absolute bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 cursor-move z-30"
+                      style={{ left: `${storySongPos.x}%`, top: `${storySongPos.y}%`, transform: 'translate(-50%, -50%)' }}
+                      onMouseDown={(e) => handleDragStart(e, 'song')}
+                    >
+                      <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-200 shadow-sm flex-shrink-0">
+                        <img src={storySong.image} alt={storySong.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex flex-col min-w-[100px] max-w-[140px]">
+                        <span className="text-gray-900 font-bold text-sm truncate leading-tight">{storySong.name}</span>
+                        <span className="text-gray-500 font-medium text-xs truncate">Instagram Music</span>
+                      </div>
+                      <FiVolume2 className="text-gray-400 text-lg ml-1" />
+                    </div>
+                  )}
+
+                  {/* Top Controls Toolbar outside or inside image preview */}
+                  <div className="absolute top-4 right-4 flex flex-col gap-5 z-40 bg-black/50 p-3 rounded-full border border-white/10 shadow-xl items-center">
+                    {/* Text block */}
+                    <div className="flex flex-col gap-1 items-center">
+                      <button onClick={() => setIsAddingText(true)} className="text-white hover:text-gray-300 transition-colors" title="Add/Edit Text">
+                        <FiType size={22} />
+                      </button>
+                      {storyText && <FiXCircle size={14} className="text-red-400 cursor-pointer hover:text-red-500 transition-colors" onClick={() => setStoryText('')} title="Remove Text" />}
+                    </div>
+
+                    {/* Music block */}
+                    <div className="flex flex-col gap-1 items-center">
+                      <button onClick={() => setIsSongSelectorOpenInStory(true)} className="text-white hover:text-gray-300 transition-colors" title="Add Music">
+                        <FiMusic size={22} />
+                      </button>
+                      {storySong && <FiXCircle size={14} className="text-red-400 cursor-pointer hover:text-red-500 transition-colors" onClick={() => setStorySong(null)} title="Remove Music" />}
+                    </div>
+
+                    {storySong && (
+                      <button onClick={() => setIsStoryMuted(!isStoryMuted)} className="text-white hover:text-gray-300 transition-colors" title={isStoryMuted ? "Unmute" : "Mute"}>
+                        {isStoryMuted ? <FiVolumeX size={22} /> : <FiVolume2 size={22} />}
+                      </button>
+                    )}
+                    {storySong && (
+                      <button onClick={() => setIsStorySongVisible(!isStorySongVisible)} className="text-white hover:text-gray-300 transition-colors" title={isStorySongVisible ? "Show Sticker" : "Hide Sticker"}>
+                        {isStorySongVisible ? <FiEyeOff size={22} /> : <FiEye size={22} />}
+                      </button>
+                    )}
+                  </div>
+
                 </div>
-                <div className="p-4 flex justify-end">
-                  <button 
-                    onClick={handleUploadStory} 
-                    disabled={isUploadingStory}
-                    className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {isUploadingStory ? 'Sharing...' : 'Share to Story >'}
-                  </button>
+                <div className="p-4 flex flex-col gap-3 justify-end bg-black">
+                  {storySong && (
+                    <div className="w-full bg-[#262626] p-2 rounded-lg flex items-center gap-3">
+                      <FiMusic className="text-gray-400" />
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max={Math.max(0, parseStrDurationToSec(storySong.duration) - 15)} 
+                        value={songStartTime}
+                        onChange={(e) => {
+                           const val = Number(e.target.value);
+                           setSongStartTime(val);
+                           storyAudio.currentTime = val;
+                        }}
+                        className="flex-1 accent-blue-500 h-1"
+                      />
+                      <span className="text-white text-xs">{Math.floor(songStartTime / 60)}:{(songStartTime % 60).toString().padStart(2, '0')}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-end w-full">
+                    <button 
+                      onClick={handleUploadStory} 
+                      disabled={isUploadingStory}
+                      className="bg-blue-500 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-600 disabled:opacity-50"
+                    >
+                      {isUploadingStory ? 'Sharing...' : 'Share to Story >'}
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* Modals for Text Input & Song Selector */}
+              {isAddingText && (
+                <div className="fixed inset-0 z-[60] flex flex-col bg-black/80">
+                   <div className="flex justify-between items-center p-4">
+                     <button onClick={() => setIsAddingText(false)} className="text-white font-semibold">Cancel</button>
+                     <button onClick={() => { setStoryText(tempText); setIsAddingText(false); }} className="text-white font-semibold flex items-center justify-center bg-white text-black px-4 py-1.5 rounded-full">Done</button>
+                   </div>
+                   <div className="flex-1 flex items-center justify-center p-4">
+                      <input 
+                        type="text" 
+                        autoFocus
+                        value={tempText}
+                        onChange={(e) => setTempText(e.target.value)}
+                        placeholder="Type something..."
+                        className="bg-transparent text-white text-3xl font-bold text-center border-none outline-none w-full"
+                      />
+                   </div>
+                </div>
+              )}
+              {isSongSelectorOpenInStory && (
+                <SongSelector 
+                  onSelect={(song) => {
+                    setStorySong(song);
+                    setIsSongSelectorOpenInStory(false);
+                  }}
+                  onClose={() => setIsSongSelectorOpenInStory(false)}
+                />
+              )}
+
             </div>
           )}
 
@@ -302,15 +594,22 @@ const Home = () => {
                 
                 {/* Progress Bars */}
                 <div className="absolute top-0 left-0 w-full p-2 flex gap-1 z-20">
-                  {viewingUserGroup.items.map((_, idx) => (
-                    <div key={idx} className="h-[2px] bg-gray-500/50 flex-1 rounded-full overflow-hidden">
-                      <div 
-                        key={idx === activeStoryIndex ? `active-${idx}` : `inactive-${idx}`}
-                        className={`h-full bg-white ${idx === activeStoryIndex ? 'animate-story-progress' : idx < activeStoryIndex ? 'w-full' : 'w-0'}`}
-                        style={{ animationPlayState: showStoryMenu ? 'paused' : 'running' }}
-                      ></div>
-                    </div>
-                  ))}
+                  {viewingUserGroup.items.map((item, idx) => {
+                    const isExtended = item.song?.name || item.type === 'video';
+                    const durStr = isExtended ? '15s' : '5s';
+                    return (
+                      <div key={idx} className="h-[2px] bg-gray-500/50 flex-1 rounded-full overflow-hidden">
+                        <div 
+                          key={idx === activeStoryIndex ? `active-${idx}` : `inactive-${idx}`}
+                          className={`h-full bg-white ${idx === activeStoryIndex ? 'animate-story-progress' : idx < activeStoryIndex ? 'w-full' : 'w-0'}`}
+                          style={{ 
+                            animationPlayState: showStoryMenu ? 'paused' : 'running',
+                            animationDuration: durStr
+                          }}
+                        ></div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Header */}
@@ -335,7 +634,7 @@ const Home = () => {
                                   e.stopPropagation();
                                   deleteStory(viewingUserGroup.items[activeStoryIndex]._id);
                                   setShowStoryMenu(false);
-                                  setViewingUserGroup(null);
+                                  setViewingUserId(null);
                                   setActiveStoryIndex(0);
                                 }}
                               >
@@ -345,7 +644,7 @@ const Home = () => {
                          )}
                        </div>
                     )}
-                    <button className="text-white text-xl drop-shadow-md pb-[2px]" onClick={(e) => { e.stopPropagation(); setShowStoryMenu(false); setViewingUserGroup(null); setActiveStoryIndex(0); }}>✕</button>
+                    <button className="text-white text-xl drop-shadow-md pb-[2px]" onClick={(e) => { e.stopPropagation(); setShowStoryMenu(false); setViewingUserId(null); setActiveStoryIndex(0); }}>✕</button>
                   </div>
                 </div>
 
@@ -356,14 +655,140 @@ const Home = () => {
                 </div>
 
                 {/* Media Content */}
-                <div className="w-full h-full flex items-center justify-center">
+                <div className="w-full h-full flex items-center justify-center relative pointer-events-none">
                   {viewingUserGroup.items[activeStoryIndex].type === 'video' ? (
                      <video src={viewingUserGroup.items[activeStoryIndex].media} className="w-full h-full object-cover" autoPlay />
                   ) : (
                      <img src={viewingUserGroup.items[activeStoryIndex].media} className="w-full h-full object-cover" alt="Story" />
                   )}
+
+                  {/* Overlays Rendering */}
+                  {viewingUserGroup.items[activeStoryIndex].overlays?.text && (
+                    <div 
+                      className="absolute text-white font-bold text-2xl whitespace-nowrap drop-shadow-md z-30"
+                      style={{ 
+                        left: `${viewingUserGroup.items[activeStoryIndex].overlays.text.x}%`, 
+                        top: `${viewingUserGroup.items[activeStoryIndex].overlays.text.y}%`, 
+                        transform: 'translate(-50%, -50%)',
+                        color: viewingUserGroup.items[activeStoryIndex].overlays.text.color || '#fff'
+                      }}
+                    >
+                      {viewingUserGroup.items[activeStoryIndex].overlays.text.content}
+                    </div>
+                  )}
+
+                  {viewingUserGroup.items[activeStoryIndex].overlays?.song?.visible && viewingUserGroup.items[activeStoryIndex].song?.name && (
+                    <div 
+                      className="absolute bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg flex items-center gap-3 z-30 pointer-events-auto cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsMuted(!isMuted);
+                      }}
+                      style={{ 
+                        left: `${viewingUserGroup.items[activeStoryIndex].overlays.song.x}%`, 
+                        top: `${viewingUserGroup.items[activeStoryIndex].overlays.song.y}%`, 
+                        transform: 'translate(-50%, -50%)' 
+                      }}
+                    >
+                      <div className="w-10 h-10 rounded-md overflow-hidden bg-gray-200 shadow-sm flex-shrink-0">
+                        <img src={viewingUserGroup.items[activeStoryIndex].song.image} alt={viewingUserGroup.items[activeStoryIndex].song.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex flex-col min-w-[100px] max-w-[140px]">
+                        <span className="text-gray-900 font-bold text-sm truncate leading-tight">{viewingUserGroup.items[activeStoryIndex].song.name}</span>
+                        <span className="text-gray-500 font-medium text-xs truncate">Instagram Music</span>
+                      </div>
+                      {isMuted ? <FiVolumeX className="text-gray-400 text-lg ml-1" /> : <FiVolume2 className="text-blue-500 text-lg ml-1" />}
+                    </div>
+                  )}
+                  
+                  {/* Bottom Controls: Like, Reply, Views */}
+                  <div className="absolute bottom-0 left-0 w-full p-4 flex items-center gap-3 z-40 pointer-events-auto bg-gradient-to-t from-black/60 to-transparent">
+                    {viewingUserGroup.user._id !== userData?._id ? (
+                        <>
+                           <input 
+                              type="text" 
+                              placeholder={`Reply to ${viewingUserGroup.user.username}...`}
+                              className="flex-1 bg-transparent border border-white/60 rounded-full px-4 py-2.5 text-white placeholder-white outline-none focus:border-white transition-colors"
+                              onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && e.target.value.trim()) {
+                                      handleStoryReply(viewingUserGroup.user._id, viewingUserGroup.items[activeStoryIndex]._id, e.target.value);
+                                      e.target.value = '';
+                                  }
+                              }}
+                           />
+                           <button 
+                                className="text-white hover:scale-110 transition-transform p-2 cursor-pointer"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleLikeStoryAPI(viewingUserGroup.items[activeStoryIndex]?._id);
+                                }}
+                           >
+                               {viewingUserGroup.items[activeStoryIndex]?.likes?.includes(userData?._id) ? (
+                                   <FaHeart size={28} className="fill-red-500 animate-like-burst" />
+                               ) : (
+                                   <FiHeart size={28} />
+                               )}
+                           </button>
+                        </>
+                    ) : (
+                        <div className="w-full flex items-center justify-center">
+                           <button 
+                               className="flex flex-col items-center justify-center text-white gap-1 hover:bg-white/10 px-4 py-1 rounded-lg transition-colors cursor-pointer"
+                               onClick={(e) => { e.stopPropagation(); setShowStoryViewsModal(true); }}
+                           >
+                               <FiEye size={22} className="drop-shadow-md" />
+                               <span className="text-xs font-semibold drop-shadow-md pb-[1px]">{viewingUserGroup.items[activeStoryIndex]?.viewers?.length || 0}</span>
+                           </button>
+                        </div>
+                    )}
+                  </div>
+                  
                 </div>
               </div>
+              
+              {/* Story Views Modal */}
+              {showStoryViewsModal && viewingUserGroup.user._id === userData?._id && (
+                  <div className="absolute inset-x-0 bottom-0 top-auto md:top-0 md:relative w-full max-w-[400px] bg-[#262626] md:rounded-lg h-[50vh] md:h-[80vh] flex flex-col z-[60] overflow-hidden animate-cube-slide transition-transform duration-300 pointer-events-auto">
+                      <div className="p-4 border-b border-gray-700 flex justify-between items-center sticky top-0 bg-[#262626] z-10">
+                          <h3 className="text-white font-bold text-center flex-1">Viewers & Likes</h3>
+                          <button onClick={(e) => { e.stopPropagation(); setShowStoryViewsModal(false); }} className="text-white font-bold">✕</button>
+                      </div>
+                      <div className="flex-1 overflow-y-auto w-full">
+                           <div className="p-4 text-white text-sm">
+                               <div className="mb-6">
+                                   <h4 className="flex items-center gap-2 mb-3 text-gray-400 font-semibold"><FiEye /> {viewingUserGroup.items[activeStoryIndex]?.viewers?.length || 0} Views</h4>
+                                   {viewingUserGroup.items[activeStoryIndex]?.viewers?.length === 0 ? (
+                                       <span className="text-gray-500">No views yet.</span>
+                                   ) : (
+                                       <div className="flex flex-col gap-3">
+                                           {viewingUserGroup.items[activeStoryIndex]?.viewers?.map((v, i) => (
+                                               <div key={i} className="flex items-center justify-between w-full">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="relative">
+                                                            <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">
+                                                                {v.user?.profilePic ? (
+                                                                    <img src={v.user.profilePic} className="w-full h-full object-cover object-top" alt={v.user.username || 'User'} />
+                                                                ) : (
+                                                                    <img src={avatar} className="w-full h-full object-cover" alt="Default Avatar" />
+                                                                )}
+                                                            </div>
+                                                            {viewingUserGroup.items[activeStoryIndex]?.likes?.includes(v.user?._id || v.user) && (
+                                                                <div className="absolute -bottom-0.5 -right-0.5 bg-[#262626] rounded-full p-[2px] z-10 border border-[#262626]">
+                                                                    <FaHeart size={12} className="fill-red-500" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <span className="font-semibold text-[14px]">{v.user?.username || "Instagram User"}</span>
+                                                    </div>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   )}
+                               </div>
+                           </div>
+                      </div>
+                  </div>
+              )}
             </div>
           )}
 
@@ -393,6 +818,19 @@ const Home = () => {
                         </div>
                         <span className="text-[14px] font-semibold text-gray-900">{post?.user?.username}</span>
                         <span className="text-gray-400 text-xs">• {timeAgo(post?.createdAt)}</span>
+
+                        {post?.song?.name && (
+                          <div 
+                            className="ml-2 flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 cursor-pointer max-w-[150px]"
+                            onClick={(e) => togglePostMusic(e, post)}
+                          >
+                            <FiMusic size={12} className={playingPostId === post._id ? "text-blue-500 animate-pulse" : "text-gray-500"} />
+                            <span className="text-[11px] text-gray-700 font-medium truncate max-w-[80px]">{post.song.name}</span>
+                            {playingPostId === post._id ? (
+                               isFeedMuted ? <FiVolumeX size={12} className="text-gray-500 ml-1 hover:text-gray-800" onClick={(e) => { e.stopPropagation(); setIsFeedMuted(false); }} /> : <FiVolume2 size={12} className="text-gray-500 ml-1 hover:text-gray-800" onClick={(e) => { e.stopPropagation(); setIsFeedMuted(true); }} />
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                       <BsThreeDots className="cursor-pointer" size={20} onClick={() => handleOptionsClick(post)} />
                     </div>

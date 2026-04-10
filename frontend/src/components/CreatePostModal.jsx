@@ -1,8 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AiOutlineClose } from 'react-icons/ai';
 import { BiImageAdd } from 'react-icons/bi';
 import API from "../api/axios"
 import { AppContext } from '../context/AppContext';
+import { FiMusic, FiXCircle, FiVolume2, FiVolumeX } from 'react-icons/fi';
+import SongSelector from './SongSelector';
 
 const CreatePostModal = ({ isOpen, onClose }) => {
   const { getFeedPost } = React.useContext(AppContext);
@@ -10,7 +12,37 @@ const CreatePostModal = ({ isOpen, onClose }) => {
   const [previews, setPreviews] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [caption, setCaption] = useState('');
+  const [selectedSong, setSelectedSong] = useState(null);
+  const [isSongSelectorOpen, setIsSongSelectorOpen] = useState(false);
   const fileInputRef = useRef(null);
+  
+  const [isMuted, setIsMuted] = useState(false);
+  const [postAudio] = useState(new Audio());
+  const [songStartTime, setSongStartTime] = useState(0);
+
+  const parseStrDurationToSec = (durStr) => {
+    if (!durStr) return 0;
+    const parts = durStr.split(':');
+    if (parts.length === 2) {
+      return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+    }
+    return 0;
+  };
+
+  useEffect(() => {
+    if (selectedSong && !isMuted) {
+      if (!postAudio.src.includes(selectedSong.file)) {
+        postAudio.src = selectedSong.file;
+        postAudio.currentTime = songStartTime;
+      }
+      postAudio.play().catch(e => console.log("Audio play blocked", e));
+    } else {
+      postAudio.pause();
+    }
+    return () => {
+      postAudio.pause();
+    };
+  }, [selectedSong, isMuted, postAudio, songStartTime]);
 
   if (!isOpen) return null;
 
@@ -35,6 +67,11 @@ const CreatePostModal = ({ isOpen, onClose }) => {
       const formData = new FormData();
 
       formData.append('caption', caption);
+
+      if (selectedSong) {
+        const finalSong = { ...selectedSong, startTime: songStartTime };
+        formData.append('song', JSON.stringify(finalSong));
+      }
 
       files.forEach((file)=>{
         formData.append('image', file);
@@ -67,6 +104,10 @@ const CreatePostModal = ({ isOpen, onClose }) => {
     setPreviews([]);
     setCurrentIndex(0);
     setCaption('');
+    setSelectedSong(null);
+    setSongStartTime(0);
+    postAudio.pause();
+    postAudio.src = "";
   };
 
   const handleClose = () => {
@@ -172,8 +213,65 @@ const CreatePostModal = ({ isOpen, onClose }) => {
                 />
                 <div className="flex items-center justify-between">
                   <span className="text-gray-400 text-xs">{caption.length} / 2,200</span>
+                  
+                  {/* Song Selection Button */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      {selectedSong ? (
+                        <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-full border border-blue-100 dark:border-blue-800">
+                          <FiMusic className="text-blue-500" />
+                          <span className="text-xs font-medium text-blue-600 dark:text-blue-400 truncate max-w-[120px]">{selectedSong.name}</span>
+                          {isMuted ? (
+                            <FiVolumeX className="text-blue-400 cursor-pointer hover:text-blue-600 transition" onClick={() => setIsMuted(false)} />
+                          ) : (
+                            <FiVolume2 className="text-blue-400 cursor-pointer hover:text-blue-600 transition" onClick={() => setIsMuted(true)} />
+                          )}
+                          <FiXCircle 
+                            className="text-blue-400 cursor-pointer hover:text-blue-600 transition ml-1" 
+                            onClick={() => setSelectedSong(null)} 
+                          />
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={() => setIsSongSelectorOpen(true)}
+                          className="flex items-center gap-1 text-gray-500 hover:text-blue-500 transition-colors text-xs font-semibold"
+                        >
+                          <FiMusic size={16} />
+                          Add Music
+                        </button>
+                      )}
+                    </div>
+                    {selectedSong && (
+                      <div className="flex items-center gap-2 w-full bg-gray-50 dark:bg-gray-800 p-2 rounded-lg">
+                        <span className="text-xs text-gray-500">Trim:</span>
+                        <input 
+                            type="range" 
+                            min="0" 
+                            max={Math.max(0, parseStrDurationToSec(selectedSong.duration) - 15)} 
+                            value={songStartTime}
+                            onChange={(e) => {
+                               const val = Number(e.target.value);
+                               setSongStartTime(val);
+                               postAudio.currentTime = val;
+                            }}
+                            className="flex-1 accent-blue-500 h-1"
+                        />
+                        <span className="text-xs text-gray-500">{Math.floor(songStartTime / 60)}:{(songStartTime % 60).toString().padStart(2, '0')}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+              
+              {isSongSelectorOpen && (
+                <SongSelector 
+                  onSelect={(song) => {
+                    setSelectedSong(song);
+                    setIsSongSelectorOpen(false);
+                  }}
+                  onClose={() => setIsSongSelectorOpen(false)}
+                />
+              )}
             </div>
           )}
 
